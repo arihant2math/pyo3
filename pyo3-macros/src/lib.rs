@@ -13,6 +13,7 @@ use pyo3_macros_backend::{
     PyFunctionOptions, PyModuleOptions,
 };
 use quote::quote;
+use std::str::FromStr;
 use syn::{parse::Nothing, parse_macro_input};
 
 /// A proc macro used to implement Python modules.
@@ -38,41 +39,50 @@ use syn::{parse::Nothing, parse_macro_input};
 /// [1]: https://pyo3.rs/latest/module.html
 #[proc_macro_attribute]
 pub fn pymodule(args: TokenStream, input: TokenStream) -> TokenStream {
-    parse_macro_input!(args as Nothing);
+    if cfg!(feature = "enable") {
+        parse_macro_input!(args as Nothing);
 
-    let mut ast = parse_macro_input!(input as syn::ItemFn);
-    let options = match PyModuleOptions::from_attrs(&mut ast.attrs) {
-        Ok(options) => options,
-        Err(e) => return e.into_compile_error().into(),
-    };
+        let mut ast = parse_macro_input!(input as syn::ItemFn);
+        let options = match PyModuleOptions::from_attrs(&mut ast.attrs) {
+            Ok(options) => options,
+            Err(e) => return e.into_compile_error().into(),
+        };
 
-    if let Err(err) = process_functions_in_module(&options, &mut ast) {
-        return err.into_compile_error().into();
-    }
+        if let Err(err) = process_functions_in_module(&options, &mut ast) {
+            return err.into_compile_error().into();
+        }
 
-    let doc = get_doc(&ast.attrs, None);
+        let doc = get_doc(&ast.attrs, None);
 
-    let expanded = pymodule_impl(&ast.sig.ident, options, doc, &ast.vis);
+        let expanded = pymodule_impl(&ast.sig.ident, options, doc, &ast.vis);
 
-    quote!(
+        quote!(
         #ast
         #expanded
-    )
-    .into()
+        )
+        .into()
+    } else {
+        TokenStream::from_str("").expect("from str failed")
+    }
 }
 
 #[proc_macro_attribute]
 pub fn pyclass(attr: TokenStream, input: TokenStream) -> TokenStream {
-    use syn::Item;
-    let item = parse_macro_input!(input as Item);
-    match item {
-        Item::Struct(struct_) => pyclass_impl(attr, struct_, methods_type()),
-        Item::Enum(enum_) => pyclass_enum_impl(attr, enum_, methods_type()),
-        unsupported => {
-            syn::Error::new_spanned(unsupported, "#[pyclass] only supports structs and enums.")
-                .into_compile_error()
-                .into()
+    if cfg!(feature = "enable") {
+        use syn::Item;
+        let item = parse_macro_input!(input as Item);
+        match item {
+            Item::Struct(struct_) => pyclass_impl(attr, struct_, methods_type()),
+            Item::Enum(enum_) => pyclass_enum_impl(attr, enum_, methods_type()),
+            unsupported => {
+                syn::Error::new_spanned(unsupported, "#[pyclass] only supports structs and enums.")
+                    .into_compile_error()
+                    .into()
+            }
         }
+    }
+    else {
+        input
     }
 }
 
@@ -110,12 +120,17 @@ pub fn pyclass(attr: TokenStream, input: TokenStream) -> TokenStream {
 /// [11]: https://pyo3.rs/latest/class.html#object-properties-using-pyo3get-set
 #[proc_macro_attribute]
 pub fn pymethods(attr: TokenStream, input: TokenStream) -> TokenStream {
-    let methods_type = if cfg!(feature = "multiple-pymethods") {
-        PyClassMethodsType::Inventory
-    } else {
-        PyClassMethodsType::Specialization
-    };
-    pymethods_impl(attr, input, methods_type)
+    if cfg!(feature = "enable") {
+        let methods_type = if cfg!(feature = "multiple-pymethods") {
+            PyClassMethodsType::Inventory
+        } else {
+            PyClassMethodsType::Specialization
+        };
+        pymethods_impl(attr, input, methods_type)
+    }
+    else {
+        input
+    }
 }
 
 /// A proc macro used to expose Rust functions to Python.
@@ -139,26 +154,34 @@ pub fn pymethods(attr: TokenStream, input: TokenStream) -> TokenStream {
 /// [1]: https://pyo3.rs/latest/function.html
 #[proc_macro_attribute]
 pub fn pyfunction(attr: TokenStream, input: TokenStream) -> TokenStream {
-    let mut ast = parse_macro_input!(input as syn::ItemFn);
-    let options = parse_macro_input!(attr as PyFunctionOptions);
+    if cfg!(feature = "enable") {
+        let mut ast = parse_macro_input!(input as syn::ItemFn);
+        let options = parse_macro_input!(attr as PyFunctionOptions);
 
-    let expanded = build_py_function(&mut ast, options).unwrap_or_compile_error();
+        let expanded = build_py_function(&mut ast, options).unwrap_or_compile_error();
 
-    quote!(
-        #ast
-        #expanded
-    )
-    .into()
+        quote!(
+            #ast
+            #expanded
+        )
+        .into()
+    } else {
+        input
+    }
 }
 
 #[proc_macro_derive(FromPyObject, attributes(pyo3))]
 pub fn derive_from_py_object(item: TokenStream) -> TokenStream {
-    let ast = parse_macro_input!(item as syn::DeriveInput);
-    let expanded = build_derive_from_pyobject(&ast).unwrap_or_compile_error();
-    quote!(
-        #expanded
-    )
-    .into()
+    if cfg!(feature = "enable") {
+        let ast = parse_macro_input!(item as syn::DeriveInput);
+        let expanded = build_derive_from_pyobject(&ast).unwrap_or_compile_error();
+        quote!(
+            #expanded
+        ).into()
+    }
+    else {
+        item
+    }
 }
 
 fn pyclass_impl(

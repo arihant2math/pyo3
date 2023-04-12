@@ -59,6 +59,7 @@ widestring = "0.5.1"
 pyo3-build-config = { path = "pyo3-build-config", version = "0.18.2", features = ["resolve-config"] }
 
 [features]
+macro_enable = ["pyo3-macros/enable"]
 default = ["macros"]
 
 # Enables pyo3::inspect module and additional type information on FromPyObject
