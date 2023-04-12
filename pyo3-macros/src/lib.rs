@@ -68,21 +68,16 @@ pub fn pymodule(args: TokenStream, input: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn pyclass(attr: TokenStream, input: TokenStream) -> TokenStream {
-    if cfg!(feature = "enable") {
-        use syn::Item;
-        let item = parse_macro_input!(input as Item);
-        match item {
-            Item::Struct(struct_) => pyclass_impl(attr, struct_, methods_type()),
-            Item::Enum(enum_) => pyclass_enum_impl(attr, enum_, methods_type()),
-            unsupported => {
-                syn::Error::new_spanned(unsupported, "#[pyclass] only supports structs and enums.")
-                    .into_compile_error()
-                    .into()
-            }
+    use syn::Item;
+    let item = parse_macro_input!(input as Item);
+    match item {
+        Item::Struct(struct_) => pyclass_impl(attr, struct_, methods_type()),
+        Item::Enum(enum_) => pyclass_enum_impl(attr, enum_, methods_type()),
+        unsupported => {
+            syn::Error::new_spanned(unsupported, "#[pyclass] only supports structs and enums.")
+                .into_compile_error()
+                .into()
         }
-    }
-    else {
-        input
     }
 }
 
@@ -120,17 +115,12 @@ pub fn pyclass(attr: TokenStream, input: TokenStream) -> TokenStream {
 /// [11]: https://pyo3.rs/latest/class.html#object-properties-using-pyo3get-set
 #[proc_macro_attribute]
 pub fn pymethods(attr: TokenStream, input: TokenStream) -> TokenStream {
-    if cfg!(feature = "enable") {
-        let methods_type = if cfg!(feature = "multiple-pymethods") {
-            PyClassMethodsType::Inventory
-        } else {
-            PyClassMethodsType::Specialization
-        };
-        pymethods_impl(attr, input, methods_type)
-    }
-    else {
-        input
-    }
+    let methods_type = if cfg!(feature = "multiple-pymethods") {
+        PyClassMethodsType::Inventory
+    } else {
+        PyClassMethodsType::Specialization
+    };
+    pymethods_impl(attr, input, methods_type)
 }
 
 /// A proc macro used to expose Rust functions to Python.
