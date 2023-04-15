@@ -167,9 +167,9 @@ pub fn derive_from_py_object(item: TokenStream) -> TokenStream {
         let expanded = build_derive_from_pyobject(&ast).unwrap_or_compile_error();
         quote!(
             #expanded
-        ).into()
-    }
-    else {
+        )
+        .into()
+    } else {
         item
     }
 }
